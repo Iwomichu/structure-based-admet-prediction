@@ -1,1 +1,4 @@
 ipython==7.30.1
+openbabel
+numpy
+vina
