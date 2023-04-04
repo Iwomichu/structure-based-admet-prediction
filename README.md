@@ -5,5 +5,5 @@
 * `conda` https://docs.conda.io/en/latest/
 
 ### Environment
-* Create new Conda environment `conda create -n sbap python=3.9`
-* Run `pip install -r requirements.txt`
+* Create new Conda environment `conda env create -f environment.yml `
+* Run `conda activate structure-based-admet-prediction`

@@ -1,0 +1,11 @@
+name: structure-based-admet-prediction
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - ipython=7.30.1
+  - jupyter=1.0.0
+  - scikit-learn=1.2.2
+  - openbabel
+  - numpy
+  - vina
