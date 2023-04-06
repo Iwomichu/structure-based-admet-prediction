@@ -1,1 +1,1 @@
-ipython==7.30.1
+meeko
