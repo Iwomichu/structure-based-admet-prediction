@@ -1,6 +1,1 @@
-ipython==7.30.1
-jupyter==1.0.0
-scikit_learn==1.2.2
-openbabel
-numpy
-vina
+meeko==0.4.0
