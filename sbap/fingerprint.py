@@ -27,6 +27,14 @@ class InteractionFingerprintGenerator(ABC):
     ) -> list[InteractionFingerprint]:
         pass
 
+    @abstractmethod
+    def get_receptor_interaction_combinations(
+            self,
+            protein: rdkit.Chem.Mol,
+            docked_ligands: list[rdkit.Chem.Mol],
+    ) -> set[ReceptorInteractionCombination]:
+        pass
+
 
 class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
     def generate(
@@ -35,6 +43,23 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
             docked_ligands: list[rdkit.Chem.Mol],
             allowed_receptor_interaction_combinations: Optional[set[ReceptorInteractionCombination]] = None,
     ) -> list[InteractionFingerprint]:
+        fingerprint = self._run_prolif(protein, docked_ligands)
+        return self._sanitize_fingerprint(fingerprint, allowed_receptor_interaction_combinations)
+
+    def get_receptor_interaction_combinations(
+            self,
+            protein: rdkit.Chem.Mol,
+            docked_ligands: list[rdkit.Chem.Mol],
+    ) -> set[ReceptorInteractionCombination]:
+        fingerprint = self._run_prolif(protein, docked_ligands)
+        fp_df = fingerprint.to_dataframe()
+        return {ReceptorInteractionCombination(col) for col in (vs[1:] for vs in fp_df.columns.values)}
+
+    def _run_prolif(
+            self,
+            protein: rdkit.Chem.Mol,
+            docked_ligands: list[rdkit.Chem.Mol],
+    ) -> plf.Fingerprint:
         # @mjuralowicz: type ignored due to typing error caused by invalid prolif type annotations
         plf_protein = plf.Molecule.from_rdkit(protein)  # type: ignore
         plf_ligands = [plf.Molecule.from_rdkit(ligand) for ligand in docked_ligands]  # type: ignore
@@ -50,17 +75,26 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
             "CustomVdWContact",
         ])
         fp.run_from_iterable(plf_ligands, plf_protein)
-        fp_df = fp.to_dataframe()
+        return fp
+
+    def _sanitize_fingerprint(
+            self,
+            fingerprint: plf.Fingerprint,
+            allowed_receptor_interaction_combinations: Optional[set[ReceptorInteractionCombination]] = None,
+    ) -> list[InteractionFingerprint]:
+        fp_df = fingerprint.to_dataframe()
         fp_df.columns = [' '.join(col).strip() for col in [vs[1:] for vs in fp_df.columns.values]]
         if allowed_receptor_interaction_combinations is not None:
-            if not set(fp_df.columns).issubset(allowed_receptor_interaction_combinations):
-                unknown_receptor_interactions = set(fp_df.columns).difference(allowed_receptor_interaction_combinations)
+            columns_set = set(tuple(column.split(" ")) for column in fp_df.columns)
+            if not columns_set.issubset(allowed_receptor_interaction_combinations):
+                unknown_receptor_interactions = columns_set.difference(allowed_receptor_interaction_combinations)
                 self.logger.warning(
-                    f"Unknown interactions found in dataset: {', '.join(unknown_receptor_interactions)}"
+                    f"Unknown interactions found in dataset: "
+                    f"{', '.join(' '.join(pair) for pair in unknown_receptor_interactions)}"
                 )
             self.logger.info(f"Receptor interactions found: {fp_df.columns}")
             base_df = pd.DataFrame(columns=sorted(list(allowed_receptor_interaction_combinations)))
-            fp_df = pd.concat([base_df, fp_df])
+            fp_df = pd.concat([base_df, fp_df]).fillna(False)
         fingerprints = fp_df.to_dict('records')
         return [
             InteractionFingerprint(

@@ -8,10 +8,11 @@ import numpy as np
 import rdkit.Chem
 from numpy import typing as npt
 
+from sbap._types import ReceptorInteractionCombination
 from sbap.docking import SminaConfig, SminaDockerizer
 from sbap.featurizers.base import BaseFeaturizer
 from sbap.fingerprint import ProlifInteractionFingerprintGenerator
-from sbap.sdf import ChemblSdfReader
+from sbap.sdf import ChemblSdfReader, ChemblSdfRecord
 
 
 class ProlifSminaFeaturizer(BaseFeaturizer):
@@ -30,6 +31,7 @@ class ProlifSminaFeaturizer(BaseFeaturizer):
         self.smina_config = smina_config
         self.prolif_fingerprint_generator = prolif_fingerprint_generator
         self.smina_dockerizer = smina_dockerizer
+        self.allowed_receptor_interaction_combinations: set[ReceptorInteractionCombination] = set()
 
     @staticmethod
     def create(
@@ -52,16 +54,41 @@ class ProlifSminaFeaturizer(BaseFeaturizer):
         )
 
     def fit(self, protein_pdb_file_path: pathlib.Path, ligands_sdf_file: pathlib.Path) -> None:
-        # TODO @mjuralowicz: It might be a good idea to do docking and fp here but only to obtain receptor interactions
-        self.logger.debug(f"{self.__class__.__name__} does not need fitting")
+        parsed_records = self.sdf_reader.parse(ligands_sdf_file)[:25]
+        docked_mols = self._get_docked_mols(parsed_records, protein_pdb_file_path)
+        protein = rdkit.Chem.MolFromPDBFile(str(protein_pdb_file_path))
+        self.allowed_receptor_interaction_combinations = self.prolif_fingerprint_generator\
+            .get_receptor_interaction_combinations(
+                protein,
+                docked_mols,
+            )
+        self.logger.debug(f"{self.allowed_receptor_interaction_combinations=}")
 
     def transform(
             self,
             protein_pdb_file_path: pathlib.Path,
             ligands_sdf_file: pathlib.Path,
-            first_n_ligands: int = 10,
     ) -> tuple[npt.ArrayLike, npt.ArrayLike]:
-        parsed_records = self.sdf_reader.parse(ligands_sdf_file)[:first_n_ligands]
+        if self.allowed_receptor_interaction_combinations is None:
+            self.logger.warning("allowed_receptor_interaction_combinations list is unset. "
+                                "All interactions will be allowed")
+        parsed_records = self.sdf_reader.parse(ligands_sdf_file)[:50]
+        standard_values = [float(record["standardValue"]) for record in parsed_records]
+        docked_mols = self._get_docked_mols(parsed_records, protein_pdb_file_path)
+        protein = rdkit.Chem.MolFromPDBFile(str(protein_pdb_file_path))
+        fingerprints = self.prolif_fingerprint_generator.generate(
+            protein,
+            docked_mols,
+            self.allowed_receptor_interaction_combinations,
+        )
+
+        return np.array(fingerprints), np.array(standard_values)
+
+    def _get_docked_mols(
+            self,
+            parsed_records: list[ChemblSdfRecord],
+            protein_pdb_file_path: pathlib.Path,
+    ) -> list[rdkit.Chem.Mol]:
         if self.docked_ligands_directory is not None:
             docked_mols = [
                 rdkit.Chem.MolFromMol2File(file)
@@ -70,12 +97,4 @@ class ProlifSminaFeaturizer(BaseFeaturizer):
         else:
             ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in parsed_records]
             docked_mols = self.smina_dockerizer.dock(protein_pdb_file_path=protein_pdb_file_path, ligands=ligand_mols)
-
-        protein = rdkit.Chem.MolFromPDBFile(str(protein_pdb_file_path))
-        fingerprints = self.prolif_fingerprint_generator.generate(
-            protein,
-            docked_mols,
-        )
-        standard_values = [float(record["standardValue"]) for record in parsed_records]
-
-        return np.array(fingerprints), np.array(standard_values)
+        return docked_mols
