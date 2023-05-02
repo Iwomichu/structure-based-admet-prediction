@@ -9,7 +9,7 @@ from numpy import typing as npt
 from sbap.featurizers.base import BaseFeaturizer
 from sbap.docking import DockingConfig, SminaDockerizer
 from sbap.fingerprint import ProlifInteractionFingerprintGenerator
-from sbap.types import ReceptorInteractionCombination
+from sbap._types import ReceptorInteractionCombination
 from sbap.sdf import ChemblSdfRecord
 
 
@@ -43,8 +43,6 @@ class ProlifSminaFeaturizer(BaseFeaturizer):
             ligands: list[ChemblSdfRecord],
             allowed_receptor_interaction_combinations: set[ReceptorInteractionCombination] = None,
     ) -> tuple[npt.ArrayLike, npt.ArrayLike]:
-        if allowed_receptor_interaction_combinations is None:
-            raise RuntimeError(f"Allowed receptors cannot be empty for {self.__class__.__name__}")
         if self.docked_ligands_directory is not None:
             docked_mols = [
                 rdkit.Chem.MolFromMol2File(file)

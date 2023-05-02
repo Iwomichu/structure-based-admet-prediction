@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import rdkit.Chem
+import rdkit.Chem.AllChem
 
 
 @dataclass
@@ -52,7 +53,8 @@ class SminaDockerizer(Dockerizer):
         ligand_path = directory.joinpath("ligand.mol")
         mol2_ligand_path = directory.joinpath("ligand.mol2")
         docked_molecule_path = directory.joinpath("docked.mol2")
-        rdkit.Chem.MolToMolFile(ligand, str(ligand_path))
+        ligand_optimized = self._optimize_conformation(ligand)
+        rdkit.Chem.MolToMolFile(ligand_optimized, str(ligand_path))
         self._run_obabel(ligand_path, mol2_ligand_path, directory)
         self._run_smina(protein_path, mol2_ligand_path, docking_config, docked_molecule_path, directory)
         return rdkit.Chem.MolFromMol2File(str(docked_molecule_path), sanitize=False)
@@ -86,7 +88,14 @@ class SminaDockerizer(Dockerizer):
                 f"--size_z {docking_config.size_z}",
                 f"--exhaustiveness {docking_config.exhaustiveness}",
                 f"--out {str(docked_molecule_path)}",
+                "--quiet",
             ]),
             shell=True,
             cwd=str(directory),
         )
+
+    def _optimize_conformation(self, mol: rdkit.Chem.Mol):
+        mol = rdkit.Chem.AddHs(mol)  # Adds hydrogens to make optimization more accurate
+        rdkit.Chem.AllChem.EmbedMolecule(mol)  # Adds 3D positions
+        rdkit.Chem.AllChem.MMFFOptimizeMolecule(mol)  # Improves the 3D positions using a force-field method
+        return mol

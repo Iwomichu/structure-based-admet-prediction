@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import numpy.typing as npt
 import rdkit.Chem
 
-from sbap.types import ReceptorInteractionCombination
+from sbap._types import ReceptorInteractionCombination
 from sbap.sdf import ChemblSdfRecord
 
 

@@ -3,7 +3,7 @@ import rdkit
 from numpy import typing as npt
 
 from sbap.featurizers.base import BaseFeaturizer
-from sbap.types import ReceptorInteractionCombination
+from sbap._types import ReceptorInteractionCombination
 from sbap.sdf import ChemblSdfRecord
 
 
