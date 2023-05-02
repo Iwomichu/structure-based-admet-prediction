@@ -1,11 +1,8 @@
 import logging
+import pathlib
 from abc import ABC, abstractmethod
 
 import numpy.typing as npt
-import rdkit.Chem
-
-from sbap._types import ReceptorInteractionCombination
-from sbap.sdf import ChemblSdfRecord
 
 
 class BaseFeaturizer(ABC):
@@ -14,14 +11,13 @@ class BaseFeaturizer(ABC):
         self.logger.setLevel(logging_level)
 
     @abstractmethod
-    def fit(self, protein: rdkit.Chem.Mol, ligands: list[ChemblSdfRecord]) -> None:
+    def fit(self, protein_pdb_file_path: pathlib.Path, ligands_sdf_file: pathlib.Path) -> None:
         pass
 
     @abstractmethod
     def transform(
             self,
-            protein: rdkit.Chem.Mol,
-            ligands: list[ChemblSdfRecord],
-            allowed_receptor_interaction_combinations: set[ReceptorInteractionCombination] = None,
+            protein_pdb_file_path: pathlib.Path,
+            ligands_sdf_file: pathlib.Path,
     ) -> tuple[npt.ArrayLike, npt.ArrayLike]:
         pass
