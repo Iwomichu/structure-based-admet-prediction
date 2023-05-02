@@ -50,7 +50,7 @@ class ChemblSdfReader:
                 self.logger.debug(f"{standard_value=}")
                 while not re.match(r".*\$\$\$\$", file.readline()):
                     pass
-                record = ChemblSdfRecord(mol=mol.strip(), cdId=cd_id, standardValue=standard_value)
+                record = ChemblSdfRecord(mol="\n"+mol.strip(), cdId=cd_id, standardValue=standard_value)
                 yield record
 
     def parse(self, path: Path) -> list[ChemblSdfRecord]:
