@@ -10,9 +10,11 @@ dependencies:
   - pdbfixer
   - prolif
   - py3dmol
+  - pydantic
   - pymol
   - python=3.9
   - rdkit
   - scikit-learn
   - smina
+  - typer
   - vina

@@ -2,15 +2,14 @@ import pathlib
 import subprocess
 import tempfile
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Optional
 
 import rdkit.Chem
 import rdkit.Chem.AllChem
+from pydantic_yaml import YamlModel
 
 
-@dataclass
-class SminaConfig:
+class SminaConfig(YamlModel):
     center_x: float
     center_y: float
     center_z: float
