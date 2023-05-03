@@ -48,10 +48,12 @@ class SminaDockerizer(Dockerizer):
             if protein_pdb_file_path is None:
                 protein_pdb_file_path = directory.joinpath("protein.pdb")
                 rdkit.Chem.MolToPDBFile(protein, str(protein_pdb_file_path))
-            return [
+            output = [
                 self._dock_single_ligand(ligand, directory, protein_pdb_file_path)
                 for ligand in ligands
             ]
+            assert len(output) == len(ligands)
+            return output
 
     def _dock_single_ligand(
             self,
