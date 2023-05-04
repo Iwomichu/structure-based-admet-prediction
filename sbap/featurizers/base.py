@@ -6,7 +6,7 @@ import pathlib
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable
 
 import numpy as np
 import rdkit.Chem
@@ -62,7 +62,7 @@ class LabeledDockingResultHandler:
         with open(self.labels_file_path, 'r', encoding='utf-8') as f:
             return [
                 LabeledDockingResult(
-                    mol=rdkit.Chem.MolFromMolFile(self.directory_path.joinpath(f"{result_id}.mol")),
+                    mol=rdkit.Chem.MolFromMolFile(str(self.directory_path.joinpath(f"{result_id}.mol")), sanitize=False),
                     label=label,
                 ) for result_id, label in csv.reader(f)
             ]
@@ -98,11 +98,9 @@ class LigandDockingFingerprintFeaturizer(RawInputBaseFeaturizer):
             fingerprint_generator: InteractionFingerprintGenerator,
             dockerizer: Dockerizer,
             logging_level: int = logging.INFO,
-            labeled_docking_result_handler: Optional[LabeledDockingResultHandler] = None,
     ) -> None:
         super().__init__(logging_level)
         self.sdf_reader = sdf_reader
-        self.labeled_docking_result_handler = labeled_docking_result_handler
         self.fingerprint_generator = fingerprint_generator
         self.dockerizer = dockerizer
         self.allowed_receptor_interaction_combinations: set[ReceptorInteractionCombination] = set()
@@ -133,7 +131,7 @@ class LigandDockingFingerprintFeaturizer(RawInputBaseFeaturizer):
             self.allowed_receptor_interaction_combinations,
         )
 
-        return np.array(fingerprints), np.array(standard_values)
+        return np.array(fingerprints), np.array(standard_values).astype('float')
 
     def _get_docked_mols(
             self,
@@ -142,12 +140,6 @@ class LigandDockingFingerprintFeaturizer(RawInputBaseFeaturizer):
     ) -> list[rdkit.Chem.Mol]:
         ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in parsed_records]
         docked_mols = self.dockerizer.dock(protein_pdb_file_path=protein_pdb_file_path, ligands=ligand_mols)
-        if self.labeled_docking_result_handler is not None:
-            self.labeled_docking_result_handler.save_many(
-                LabeledDockingResult(docked_mol, record['standardValue'])
-                for record, docked_mol in zip(parsed_records, docked_mols)
-                if docked_mol is not None
-            )
         return docked_mols
 
 
@@ -166,8 +158,9 @@ class DockedLigandFingerprintFeaturizer(DockedInputBaseFeaturizer):
         docking_results = handler.read()
         docked_mols = [result.mol for result in docking_results]
         protein = rdkit.Chem.MolFromPDBFile(str(protein_pdb_file_path))
-        self.allowed_receptor_interaction_combinations += self.fingerprint_generator \
-            .get_receptor_interaction_combinations(protein, docked_mols)
+        self.allowed_receptor_interaction_combinations.update(
+            self.fingerprint_generator.get_receptor_interaction_combinations(protein, docked_mols)
+        )
         self.logger.debug(f"{self.allowed_receptor_interaction_combinations=}")
 
     def transform(

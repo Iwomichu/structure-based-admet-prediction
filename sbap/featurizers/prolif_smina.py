@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import pathlib
-from typing import Optional
 
 import rdkit.Chem
 
@@ -34,7 +33,7 @@ class SminaDockingPersistenceHandler:
     @staticmethod
     def create(
             smina_config: SminaConfig,
-            docked_ligands_target_directory: Optional[str] = None,
+            docked_ligands_target_directory: str,
             logging_level: int = logging.INFO,
     ) -> SminaDockingPersistenceHandler:
         sdf_reader = ChemblSdfReader(logging_level)
@@ -78,34 +77,27 @@ class SminaDockingToProlifFingerprintFeaturizer(LigandDockingFingerprintFeaturiz
             prolif_fingerprint_generator: ProlifInteractionFingerprintGenerator,
             smina_dockerizer: SminaDockerizer,
             logging_level: int = logging.INFO,
-            labeled_docking_result_handler: Optional[LabeledDockingResultHandler] = None,
     ) -> None:
         super().__init__(
             logging_level=logging_level,
             sdf_reader=sdf_reader,
             dockerizer=smina_dockerizer,
             fingerprint_generator=prolif_fingerprint_generator,
-            labeled_docking_result_handler=labeled_docking_result_handler,
         )
 
     @staticmethod
     def create(
             smina_config: SminaConfig,
             logging_level: int = logging.INFO,
-            docked_ligands_target_directory: Optional[str] = None,
     ) -> SminaDockingToProlifFingerprintFeaturizer:
         sdf_reader = ChemblSdfReader(logging_level)
         prolif_fingerprint_generator = ProlifInteractionFingerprintGenerator(logging_level)
         smina_dockerizer = SminaDockerizer(smina_config)
-        labeled_docking_result_handler = LabeledDockingResultHandler(
-            pathlib.Path(docked_ligands_target_directory)
-        ) if docked_ligands_target_directory is not None else None
         return SminaDockingToProlifFingerprintFeaturizer(
             sdf_reader=sdf_reader,
             prolif_fingerprint_generator=prolif_fingerprint_generator,
             smina_dockerizer=smina_dockerizer,
             logging_level=logging_level,
-            labeled_docking_result_handler=labeled_docking_result_handler,
         )
 
 
