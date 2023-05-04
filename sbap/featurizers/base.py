@@ -109,8 +109,9 @@ class LigandDockingFingerprintFeaturizer(RawInputBaseFeaturizer):
         parsed_records = self.sdf_reader.parse(ligands_sdf_file)
         docked_mols = self._get_docked_mols(parsed_records, protein_pdb_file_path)
         protein = rdkit.Chem.MolFromPDBFile(str(protein_pdb_file_path))
-        self.allowed_receptor_interaction_combinations += self.fingerprint_generator \
-            .get_receptor_interaction_combinations(protein, docked_mols)
+        self.allowed_receptor_interaction_combinations.update(
+            self.fingerprint_generator.get_receptor_interaction_combinations(protein, docked_mols)
+        )
         self.logger.debug(f"{self.allowed_receptor_interaction_combinations=}")
 
     def transform(
