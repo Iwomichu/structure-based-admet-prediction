@@ -59,15 +59,19 @@ class SminaDockingPersistenceHandler:
             starting_batch -= 1
 
         for i, batch in enumerate(batch_generator, start=starting_batch):
-            self.logger.info(f"Batch {i} started...")
-            ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in batch]
-            docked_mols = self.smina_dockerizer.dock(protein_pdb_file_path=protein_pdb_file_path, ligands=ligand_mols)
-            standard_values = [float(record["standardValue"]) for record in batch]
-            assert len(docked_mols) == len(standard_values)
-            self.labeled_docking_result_handler.save_many(
-                LabeledDockingResult(mol, value) for mol, value in zip(docked_mols, standard_values)
-            )
-            self.logger.info(f"Batch {i} finished.")
+            try:
+                self.logger.info(f"Batch {i} started...")
+                ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in batch]
+                docked_mols = self.smina_dockerizer.dock(protein_pdb_file_path=protein_pdb_file_path, ligands=ligand_mols)
+                standard_values = [float(record["standardValue"]) for record in batch]
+                assert len(docked_mols) == len(standard_values)
+                self.labeled_docking_result_handler.save_many(
+                    LabeledDockingResult(mol, value) for mol, value in zip(docked_mols, standard_values)
+                )
+                self.logger.info(f"Batch {i} finished.")
+            except ValueError as e:
+                self.logger.error(f"Batch {i} encountered error: {e}")
+                continue
 
 
 class SminaDockingToProlifFingerprintFeaturizer(LigandDockingFingerprintFeaturizer):

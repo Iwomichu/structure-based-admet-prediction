@@ -14,8 +14,8 @@ app = typer.Typer()
 def dock(
         sdf_file: pathlib.Path,
         protein_pdb_file: pathlib.Path,
-        docked_ligands_target_directory: pathlib.Path,
         smina_config_file: pathlib.Path,
+        docked_ligands_target_directory: pathlib.Path,
         batch_size: int = 25,
         starting_batch: int = 0,
 ) -> None:
