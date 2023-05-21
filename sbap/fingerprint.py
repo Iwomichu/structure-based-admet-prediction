@@ -93,7 +93,10 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
                     f"{', '.join(' '.join(pair) for pair in unknown_receptor_interactions)}"
                 )
             self.logger.info(f"Receptor interactions found: {fp_df.columns}")
-            base_df = pd.DataFrame(columns=sorted(list(allowed_receptor_interaction_combinations)))
+            receptor_combinations_flat: list[str] = sorted(list(map(
+                lambda combination: " ".join(combination), allowed_receptor_interaction_combinations
+            )))
+            base_df = pd.DataFrame(columns=receptor_combinations_flat)
             fp_df = pd.concat([base_df, fp_df]).fillna(False)
         fingerprints = fp_df.to_dict('records')
         return [
