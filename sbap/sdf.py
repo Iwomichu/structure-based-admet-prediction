@@ -18,13 +18,11 @@ class ChemblSdfReader:
     def _non_empty_line_or_none(self, file: TextIO, max_empty_lines_distance: int = 5) -> Optional[str]:
         empty_lines = 0
         line = file.readline()
-        self.logger.debug(f"{line=}")
         while line.strip() == "":
             empty_lines += 1
             if empty_lines > max_empty_lines_distance:
                 return None
             line = file.readline()
-            self.logger.debug(f"{line=}")
         return line
 
     def chembl_file_record_generator(
@@ -41,16 +39,13 @@ class ChemblSdfReader:
                 while not re.match(r">.* <CdId>", line):
                     mol += line
                     line = file.readline()
-                    self.logger.debug(f"{line=}")
                 cd_id = int(file.readline())
-                self.logger.debug(f"{cd_id=}")
                 while not re.match(r">.* <Standard Value>", file.readline()):
                     pass
                 standard_value = float(file.readline())
-                self.logger.debug(f"{standard_value=}")
                 while not re.match(r".*\$\$\$\$", file.readline()):
                     pass
-                record = ChemblSdfRecord(mol=mol.strip(), cdId=cd_id, standardValue=standard_value)
+                record = ChemblSdfRecord(mol="\n"+mol.strip(), cdId=cd_id, standardValue=standard_value)
                 yield record
 
     def parse(self, path: Path) -> list[ChemblSdfRecord]:
