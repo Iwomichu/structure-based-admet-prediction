@@ -11,8 +11,9 @@ from typing import Iterable
 import numpy as np
 import rdkit.Chem
 from numpy import typing as npt
+from tqdm import tqdm
 
-from sbap._types import ReceptorInteractionCombination
+from sbap._types import ReceptorInteractionCombination, DockingScore
 from sbap.docking import Dockerizer
 from sbap.fingerprint import InteractionFingerprintGenerator
 from sbap.sdf import ChemblSdfReader, ChemblSdfRecord
@@ -62,10 +63,15 @@ class LabeledDockingResultHandler:
         with open(self.labels_file_path, 'r', encoding='utf-8') as f:
             return [
                 LabeledDockingResult(
-                    mol=rdkit.Chem.MolFromMolFile(str(self.directory_path.joinpath(f"{result_id}.mol")), sanitize=False),
+                    mol=rdkit.Chem.MolFromMolFile(str(self.directory_path.joinpath(f"{result_id}.mol")),
+                                                  sanitize=False),
                     label=label,
                 ) for result_id, label in csv.reader(f)
             ]
+
+    def get_docked_ligands_paths(self) -> Iterable[pathlib.Path]:
+        with open(self.labels_file_path, 'r', encoding='utf-8') as f:
+            return [self.directory_path.joinpath(f"{result_id}.mol") for result_id, label in csv.reader(f)]
 
     def _save_to_unique_file(self, result: LabeledDockingResult) -> uuid.UUID:
         result_id = uuid.uuid4()
@@ -181,3 +187,28 @@ class DockedLigandFingerprintFeaturizer(DockedInputBaseFeaturizer):
         )
 
         return np.array(fingerprints), np.array(standard_values)
+
+
+class DockingScoreFeaturizer(ABC):
+    def __init__(self, logging_level: int = logging.INFO) -> None:
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging_level)
+
+    def featurize(
+            self,
+            protein_pdb_file_path: pathlib.Path,
+            docked_ligands_directory_path: pathlib.Path,
+    ) -> npt.ArrayLike:
+        handler = LabeledDockingResultHandler(docked_ligands_directory_path)
+        return np.array([
+            self.calculate(protein_pdb_file_path, docked_ligand_path)
+            for docked_ligand_path in tqdm(handler.get_docked_ligands_paths())
+        ])
+
+    @abstractmethod
+    def calculate(
+            self,
+            protein_pdb_file_path: pathlib.Path,
+            docked_ligand_path: pathlib.Path,
+    ) -> DockingScore:
+        pass
