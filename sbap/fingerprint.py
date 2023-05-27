@@ -5,7 +5,6 @@ from typing import Optional
 
 import pandas as pd
 import prolif as plf
-
 import rdkit.Chem
 from MDAnalysis.topology.tables import vdwradii
 from prolif.interactions import Interaction
@@ -44,7 +43,9 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
             allowed_receptor_interaction_combinations: Optional[set[ReceptorInteractionCombination]] = None,
     ) -> list[InteractionFingerprint]:
         fingerprint = self._run_prolif(protein, docked_ligands)
-        return self._sanitize_fingerprint(fingerprint, allowed_receptor_interaction_combinations)
+        sanitized_fingerprints = self._sanitize_fingerprint(fingerprint, allowed_receptor_interaction_combinations)
+        assert len(docked_ligands) == len(sanitized_fingerprints)
+        return sanitized_fingerprints
 
     def get_receptor_interaction_combinations(
             self,

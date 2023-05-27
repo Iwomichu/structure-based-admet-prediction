@@ -6,6 +6,7 @@ import re
 import subprocess
 
 import rdkit.Chem
+from tqdm import tqdm
 
 from sbap._types import DockingScore
 from sbap.docking import SminaConfig, SminaDockerizer
@@ -62,20 +63,20 @@ class SminaDockingPersistenceHandler:
             next(batch_generator)
             starting_batch -= 1
 
-        for i, batch in enumerate(batch_generator, start=starting_batch):
+        for i, batch in enumerate(tqdm(batch_generator, total=len(parsed_records) / batch_size - starting_batch),
+                                  start=starting_batch):
             try:
-                self.logger.info(f"Batch {i} started...")
                 ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in batch]
-                docked_mols = self.smina_dockerizer.dock(
+                docking_results = self.smina_dockerizer.dock(
                     protein_pdb_file_path=protein_pdb_file_path,
                     ligands=ligand_mols,
                 )
                 standard_values = [float(record["standardValue"]) for record in batch]
-                assert len(docked_mols) == len(standard_values)
+                assert len(docking_results) == len(standard_values)
                 self.labeled_docking_result_handler.save_many(
-                    LabeledDockingResult(mol, value) for mol, value in zip(docked_mols, standard_values)
+                    LabeledDockingResult(mol=result.mol, score=result.score, label=value)
+                    for result, value in zip(docking_results, standard_values)
                 )
-                self.logger.info(f"Batch {i} finished.")
             except ValueError as e:
                 self.logger.error(f"Batch {i} encountered error: {e}")
                 continue
