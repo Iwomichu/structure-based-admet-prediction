@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from itertools import product
 from typing import Optional
 
-import pandas as pd
 import prolif as plf
 import rdkit.Chem
 from MDAnalysis.topology.tables import vdwradii
@@ -52,9 +51,14 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
             protein: rdkit.Chem.Mol,
             docked_ligands: list[rdkit.Chem.Mol],
     ) -> set[ReceptorInteractionCombination]:
-        fingerprint = self._run_prolif(protein, docked_ligands)
-        fp_df = fingerprint.to_dataframe()
-        return {ReceptorInteractionCombination(col) for col in (vs[1:] for vs in fp_df.columns.values)}
+        fingerprints = self._run_prolif(protein, docked_ligands)
+        fp_df = fingerprints.to_dataframe()
+        receptor_interactions = {
+            ReceptorInteractionCombination((receptor, interaction_type))
+            for (receptor, interaction_type) in (fingerprint[1:] for fingerprint in fp_df.columns.values)
+        }
+        receptor_any_interaction = {(receptor, "Any") for (receptor, _) in receptor_interactions}
+        return receptor_interactions | receptor_any_interaction
 
     def _run_prolif(
             self,
@@ -84,27 +88,45 @@ class ProlifInteractionFingerprintGenerator(InteractionFingerprintGenerator):
             allowed_receptor_interaction_combinations: Optional[set[ReceptorInteractionCombination]] = None,
     ) -> list[InteractionFingerprint]:
         fp_df = fingerprint.to_dataframe()
-        fp_df.columns = [' '.join(col).strip() for col in [vs[1:] for vs in fp_df.columns.values]]
+        fp_df.columns = [col for col in [vs[1:] for vs in fp_df.columns.values]]
+        receptor_interaction_types: set[ReceptorInteractionCombination] = {
+            ReceptorInteractionCombination(receptor_interaction)
+            for receptor_interaction in fp_df.columns
+        }
         if allowed_receptor_interaction_combinations is not None:
-            columns_set = set(tuple(column.split(" ")) for column in fp_df.columns)
-            if not columns_set.issubset(allowed_receptor_interaction_combinations):
-                unknown_receptor_interactions = columns_set.difference(allowed_receptor_interaction_combinations)
-                self.logger.warning(
-                    f"Unknown interactions found in dataset: "
-                    f"{', '.join(' '.join(pair) for pair in unknown_receptor_interactions)}"
-                )
-            self.logger.info(f"Receptor interactions found: {fp_df.columns}")
-            receptor_combinations_flat: list[str] = sorted(list(map(
-                lambda combination: " ".join(combination), allowed_receptor_interaction_combinations
-            )))
-            base_df = pd.DataFrame(columns=receptor_combinations_flat)
-            fp_df = pd.concat([base_df, fp_df]).fillna(False)
-        fingerprints = fp_df.to_dict('records')
+            receptor_interaction_types = self._check_interaction_combinations(
+                receptor_interaction_types,
+                allowed_receptor_interaction_combinations,
+            )
+        interacted_receptors = {receptor for (receptor, interaction) in receptor_interaction_types}
         return [
-            InteractionFingerprint(
-                [int(receptor_interaction) for receptor_interaction in fingerprint.values()]
-            ) for fingerprint in fingerprints
+            InteractionFingerprint([
+                                       int(record.get(specific_interaction, False))
+                                       for specific_interaction in allowed_receptor_interaction_combinations
+                                   ] + [
+                                       int(any(
+                                           value and receptor == generalized_receptor for (receptor, interaction), value
+                                           in record.items()
+                                       ))
+                                       for generalized_receptor in interacted_receptors
+                                   ])
+            for record in fp_df.to_dict('records')
         ]
+
+    def _check_interaction_combinations(
+            self,
+            receptor_interaction_types: set[ReceptorInteractionCombination],
+            allowed_receptor_interaction_combinations: set[ReceptorInteractionCombination],
+    ) -> set[ReceptorInteractionCombination]:
+        if not receptor_interaction_types.issubset(allowed_receptor_interaction_combinations):
+            unknown_receptor_interactions = receptor_interaction_types.difference(
+                allowed_receptor_interaction_combinations,
+            )
+            self.logger.warning(
+                f"Unknown interactions found in dataset: "
+                f"{', '.join(' '.join(pair) for pair in unknown_receptor_interactions)}"
+            )
+        return allowed_receptor_interaction_combinations
 
 
 class CustomVdWContact(Interaction):
