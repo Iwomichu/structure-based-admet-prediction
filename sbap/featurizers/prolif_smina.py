@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import logging
 import pathlib
+import re
+import subprocess
 
 import rdkit.Chem
+from tqdm import tqdm
 
+from sbap._types import DockingScore
 from sbap.docking import SminaConfig, SminaDockerizer
 from sbap.featurizers.base import LabeledDockingResultHandler, \
-    LigandDockingFingerprintFeaturizer, DockedLigandFingerprintFeaturizer, LabeledDockingResult
+    LigandDockingFingerprintFeaturizer, DockedLigandFingerprintFeaturizer, LabeledDockingResult, DockingScoreFeaturizer
 from sbap.fingerprint import ProlifInteractionFingerprintGenerator
 from sbap.sdf import ChemblSdfReader
 from sbap.utils import batched
@@ -17,6 +21,7 @@ class SminaDockingPersistenceHandler:
     """
     Class used to perform docking and save the results for future use
     """
+
     def __init__(
             self,
             sdf_reader: ChemblSdfReader,
@@ -44,11 +49,11 @@ class SminaDockingPersistenceHandler:
         )
 
     def dock(
-        self,
-        protein_pdb_file_path: pathlib.Path,
-        ligands_sdf_file: pathlib.Path,
-        batch_size: int = 25,
-        starting_batch: int = 0,
+            self,
+            protein_pdb_file_path: pathlib.Path,
+            ligands_sdf_file: pathlib.Path,
+            batch_size: int = 25,
+            starting_batch: int = 0,
     ) -> None:
         self.logger.info(f"Starting docking process with {batch_size=} and {starting_batch=}...")
         parsed_records = self.sdf_reader.parse(ligands_sdf_file)
@@ -58,17 +63,20 @@ class SminaDockingPersistenceHandler:
             next(batch_generator)
             starting_batch -= 1
 
-        for i, batch in enumerate(batch_generator, start=starting_batch):
+        for i, batch in enumerate(tqdm(batch_generator, total=len(parsed_records) / batch_size - starting_batch),
+                                  start=starting_batch):
             try:
-                self.logger.info(f"Batch {i} started...")
                 ligand_mols = [rdkit.Chem.MolFromMolBlock(record['mol']) for record in batch]
-                docked_mols = self.smina_dockerizer.dock(protein_pdb_file_path=protein_pdb_file_path, ligands=ligand_mols)
-                standard_values = [float(record["standardValue"]) for record in batch]
-                assert len(docked_mols) == len(standard_values)
-                self.labeled_docking_result_handler.save_many(
-                    LabeledDockingResult(mol, value) for mol, value in zip(docked_mols, standard_values)
+                docking_results = self.smina_dockerizer.dock(
+                    protein_pdb_file_path=protein_pdb_file_path,
+                    ligands=ligand_mols,
                 )
-                self.logger.info(f"Batch {i} finished.")
+                standard_values = [float(record["standardValue"]) for record in batch]
+                assert len(docking_results) == len(standard_values)
+                self.labeled_docking_result_handler.save_many(
+                    LabeledDockingResult(mol=result.mol, score=result.score, label=value)
+                    for result, value in zip(docking_results, standard_values)
+                )
             except ValueError as e:
                 self.logger.error(f"Batch {i} encountered error: {e}")
                 continue
@@ -123,3 +131,27 @@ class DockedProlifFingerprintFeaturizer(DockedLigandFingerprintFeaturizer):
             prolif_fingerprint_generator=prolif_fingerprint_generator,
             logging_level=logging_level,
         )
+
+
+class SminaDockingScoreFeaturizer(DockingScoreFeaturizer):
+    def __init__(self, logging_level: int = logging.INFO) -> None:
+        super().__init__(logging_level)
+
+    def calculate(self, protein_pdb_file_path: pathlib.Path,
+                  docked_ligand_path: pathlib.Path) -> DockingScore:
+        output = subprocess.run(
+            " ".join([
+                "smina",
+                f"-r {str(protein_pdb_file_path.absolute())}",
+                f"-l {str(docked_ligand_path.absolute())}",
+                "--score_only",
+            ]),
+            shell=True,
+            capture_output=True,
+        )
+        score = re.search(r'Affinity:\s*(-?[\d.]+)', str(output.stdout))
+        if score is None:
+            raise RuntimeError(f"No docking score found in smina scoring of docked ligand "
+                               f"from {docked_ligand_path} in {protein_pdb_file_path}")
+        else:
+            return DockingScore(float(score.group(1)))
