@@ -72,9 +72,10 @@ class SminaDockingPersistenceHandler:
                     ligands=ligand_mols,
                 )
                 standard_values = [float(record["standardValue"]) for record in batch]
+                cdId = [int(record["cdId"]) for record in batch]
                 assert len(docking_results) == len(standard_values)
                 self.labeled_docking_result_handler.save_many(
-                    LabeledDockingResult(mol=result.mol, score=result.score, label=value)
+                    LabeledDockingResult(mol=result.mol, score=result.score, label=value, cdId=cdId)
                     for result, value in zip(docking_results, standard_values)
                 )
             except ValueError as e:
