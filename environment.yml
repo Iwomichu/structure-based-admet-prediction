@@ -14,7 +14,11 @@ dependencies:
   - pymol
   - python=3.9
   - rdkit
+  - rich
   - scikit-learn
+  - scipy
   - smina
   - typer
   - vina
+  - pip:
+      - meeko==0.4.0
