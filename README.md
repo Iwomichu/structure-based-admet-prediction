@@ -21,20 +21,20 @@ This repository contains code transforming the pair (``.sdf`` file with ligands,
 #### Python API
 
 We need to supply two files - ``.sdf`` with ligands, ``.pdb`` with protein and a directory where docked ligands can be found (or should be placed, if molecular docking was not performed yet)
-```
+```python
 sdf_file = pathlib.Path("path/to/sdf/with/ligands")
 protein_pdb_file = pathlib.Path("path/to/protein/pdb/file")
 docked_ligands_target_directory = pathlib.Path("directory/with/docked/ligands")
 ```
 
 To perform molecular docking, you should specify some parameters, see [Smina](https://github.com/mwojcikowski/smina) documentation for more details:
-```
+```python
 config = SminaConfig(
     center_x=48.254, center_y=11.175, center_z=-20.580, size_x=30, size_y=30, size_z=30, exhaustiveness=8,
 )
 ```
 Perform molecular docking and save results in ``docked_ligands_target_directory``:
-```
+```python
 persistent_docking_handler = SminaDockingPersistenceHandler.create(
     smina_config=config,
     docked_ligands_target_directory=str(docked_ligands_target_directory),
@@ -43,7 +43,7 @@ persistent_docking_handler = SminaDockingPersistenceHandler.create(
 persistent_docking_handler.dock(protein_pdb_file, sdf_file, starting_batch=1, batch_size=15)
 ```
 And transform this output into SIFt's.
-```
+```python
 fingerprint_featurizer = DockedProlifFingerprintFeaturizer.create(
     logging_level=logging.INFO,
 )
