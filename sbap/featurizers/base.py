@@ -40,6 +40,7 @@ class RawInputBaseFeaturizer(ABC):
 @dataclass
 class LabeledDockingResult(DockingResult):
     label: float
+    cdId: int
 
 
 class LabeledDockingResultHandler:
@@ -52,12 +53,12 @@ class LabeledDockingResultHandler:
     def save(self, result: LabeledDockingResult) -> None:
         result_id = self._save_to_unique_file(result)
         with open(self.labels_file_path, 'a', encoding='utf-8') as f:
-            csv.writer(f).writerow((result_id, result.score, result.label))
+            csv.writer(f).writerow((result_id, result.score, result.label, result.cdId))
 
     def save_many(self, results: Iterable[LabeledDockingResult]) -> None:
         with open(self.labels_file_path, 'a', encoding='utf-8') as f:
             csv.writer(f).writerows(
-                (self._save_to_unique_file(result), result.score, result.label)
+                (self._save_to_unique_file(result), result.score, result.label, result.cdId)
                 for result in results
             )
 
@@ -69,12 +70,13 @@ class LabeledDockingResultHandler:
                                                   sanitize=False),
                     score=score,
                     label=label,
-                ) for result_id, score, label in csv.reader(f)
+                    cdId=cdId,
+                ) for result_id, score, label, cdId in csv.reader(f)
             ]
 
     def get_docked_ligands_paths(self) -> Iterable[pathlib.Path]:
         with open(self.labels_file_path, 'r', encoding='utf-8') as f:
-            return [self.directory_path.joinpath(f"{result_id}.mol") for result_id, _, label in csv.reader(f)]
+            return [self.directory_path.joinpath(f"{result_id}.mol") for result_id, _, _, _ in csv.reader(f)]
 
     def _save_to_unique_file(self, result: LabeledDockingResult) -> uuid.UUID:
         result_id = uuid.uuid4()
